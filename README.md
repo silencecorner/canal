@@ -6,7 +6,7 @@
 [![percentage of issues still open](http://isitmaintained.com/badge/open/alibaba/canal.svg)](http://isitmaintained.com/project/alibaba/canal "percentage of issues still open")
 
 ## table log实现
-目前实现`insert``update`的日志填充，变异rdb模块替换官方1.1.4版本canal-adapter的中的plugin的`client-adapter.rdb-1.1.4-jar-with-dependencies.jar`依赖
+目前实现`insert`、`update`的日志填充，编译rdb模块替换官方1.1.4版本canal-adapter的中的plugin的`client-adapter.rdb-1.1.4-jar-with-dependencies.jar`依赖
 ```yaml
 dataSourceKey: defaultDS
 destination: example

@@ -1,33 +1,27 @@
 package com.alibaba.otter.canal.client.adapter.rdb.service;
 
-import java.sql.Connection;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.function.Function;
-
-import javax.sql.DataSource;
-
-import com.alibaba.otter.canal.client.adapter.rdb.id.DefaultIdentifierGenerator;
-import com.alibaba.otter.canal.client.adapter.rdb.id.IdentifierGenerator;
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.alibaba.otter.canal.client.adapter.rdb.config.MappingConfig;
 import com.alibaba.otter.canal.client.adapter.rdb.config.MappingConfig.DbMapping;
+import com.alibaba.otter.canal.client.adapter.rdb.id.DefaultIdentifierGenerator;
+import com.alibaba.otter.canal.client.adapter.rdb.id.IdentifierGenerator;
 import com.alibaba.otter.canal.client.adapter.rdb.support.BatchExecutor;
 import com.alibaba.otter.canal.client.adapter.rdb.support.SingleDml;
 import com.alibaba.otter.canal.client.adapter.rdb.support.SyncUtil;
 import com.alibaba.otter.canal.client.adapter.support.Dml;
 import com.alibaba.otter.canal.client.adapter.support.Util;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.function.Function;
 
 /**
  * RDB同步操作业务
@@ -277,7 +271,7 @@ public class RdbSyncService {
                 throw new RuntimeException("Target column: " + targetColumnName + " not matched");
             }
             Object value = data.get(srcColumnName);
-            if (tableLog && targetColumnName.equalsIgnoreCase("id")){
+            if (tableLog && targetColumnName.equalsIgnoreCase("id")) {
                 value = generator.nextId();
             }
             BatchExecutor.setValue(values, type, value);
