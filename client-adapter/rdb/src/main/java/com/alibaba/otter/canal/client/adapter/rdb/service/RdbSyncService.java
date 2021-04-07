@@ -3,11 +3,7 @@ package com.alibaba.otter.canal.client.adapter.rdb.service;
 import java.sql.Connection;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -17,6 +13,8 @@ import java.util.function.Function;
 
 import javax.sql.DataSource;
 
+import com.alibaba.otter.canal.client.adapter.rdb.id.DefaultIdentifierGenerator;
+import com.alibaba.otter.canal.client.adapter.rdb.id.IdentifierGenerator;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,17 +37,17 @@ import com.alibaba.otter.canal.client.adapter.support.Util;
  */
 public class RdbSyncService {
 
-    private static final Logger               logger  = LoggerFactory.getLogger(RdbSyncService.class);
+    private static final Logger logger = LoggerFactory.getLogger(RdbSyncService.class);
 
     // 源库表字段类型缓存: instance.schema.table -> <columnName, jdbcType>
     private Map<String, Map<String, Integer>> columnsTypeCache;
 
-    private int                               threads = 3;
-    private boolean                           skipDupException;
+    private int threads = 3;
+    private boolean skipDupException;
 
-    private List<SyncItem>[]                  dmlsPartition;
-    private BatchExecutor[]                   batchExecutors;
-    private ExecutorService[]                 executorThreads;
+    private List<SyncItem>[] dmlsPartition;
+    private BatchExecutor[] batchExecutors;
+    private ExecutorService[] executorThreads;
 
     public List<SyncItem>[] getDmlsPartition() {
         return dmlsPartition;
@@ -59,13 +57,13 @@ public class RdbSyncService {
         return columnsTypeCache;
     }
 
-    public RdbSyncService(DataSource dataSource, Integer threads, boolean skipDupException){
+    public RdbSyncService(DataSource dataSource, Integer threads, boolean skipDupException) {
         this(dataSource, threads, new ConcurrentHashMap<>(), skipDupException);
     }
 
     @SuppressWarnings("unchecked")
     public RdbSyncService(DataSource dataSource, Integer threads, Map<String, Map<String, Integer>> columnsTypeCache,
-                          boolean skipDupException){
+                          boolean skipDupException) {
         this.columnsTypeCache = columnsTypeCache;
         this.skipDupException = skipDupException;
         try {
@@ -88,7 +86,7 @@ public class RdbSyncService {
     /**
      * 批量同步回调
      *
-     * @param dmls 批量 DML
+     * @param dmls     批量 DML
      * @param function 回调方法
      */
     public void sync(List<Dml> dmls, Function<Dml, Boolean> function) {
@@ -113,8 +111,8 @@ public class RdbSyncService {
                     futures.add(executorThreads[i].submit(() -> {
                         try {
                             dmlsPartition[j].forEach(syncItem -> sync(batchExecutors[j],
-                                syncItem.config,
-                                syncItem.singleDml));
+                                    syncItem.config,
+                                    syncItem.singleDml));
                             dmlsPartition[j].clear();
                             batchExecutors[j].commit();
                             return true;
@@ -146,68 +144,76 @@ public class RdbSyncService {
      * 批量同步
      *
      * @param mappingConfig 配置集合
-     * @param dmls 批量 DML
+     * @param dmls          批量 DML
      */
     public void sync(Map<String, Map<String, MappingConfig>> mappingConfig, List<Dml> dmls, Properties envProperties) {
         sync(dmls, dml -> {
             if (dml.getIsDdl() != null && dml.getIsDdl() && StringUtils.isNotEmpty(dml.getSql())) {
                 // DDL
-            columnsTypeCache.remove(dml.getDestination() + "." + dml.getDatabase() + "." + dml.getTable());
-            return false;
-        } else {
-            // DML
-            String destination = StringUtils.trimToEmpty(dml.getDestination());
-            String groupId = StringUtils.trimToEmpty(dml.getGroupId());
-            String database = dml.getDatabase();
-            String table = dml.getTable();
-            Map<String, MappingConfig> configMap;
-            if (envProperties != null && !"tcp".equalsIgnoreCase(envProperties.getProperty("canal.conf.mode"))) {
-                configMap = mappingConfig.get(destination + "-" + groupId + "_" + database + "-" + table);
+                columnsTypeCache.remove(dml.getDestination() + "." + dml.getDatabase() + "." + dml.getTable());
+                return false;
             } else {
-                configMap = mappingConfig.get(destination + "_" + database + "-" + table);
-            }
-
-            if (configMap == null) {
-                return false;
-            }
-
-            if (configMap.values().isEmpty()) {
-                return false;
-            }
-
-            for (MappingConfig config : configMap.values()) {
-                if (config.getConcurrent()) {
-                    List<SingleDml> singleDmls = SingleDml.dml2SingleDmls(dml);
-                    singleDmls.forEach(singleDml -> {
-                        int hash = pkHash(config.getDbMapping(), singleDml.getData());
-                        SyncItem syncItem = new SyncItem(config, singleDml);
-                        dmlsPartition[hash].add(syncItem);
-                    });
+                // DML
+                String destination = StringUtils.trimToEmpty(dml.getDestination());
+                String groupId = StringUtils.trimToEmpty(dml.getGroupId());
+                String database = dml.getDatabase();
+                String table = dml.getTable();
+                Map<String, MappingConfig> configMap;
+                if (envProperties != null && !"tcp".equalsIgnoreCase(envProperties.getProperty("canal.conf.mode"))) {
+                    configMap = mappingConfig.get(destination + "-" + groupId + "_" + database + "-" + table);
                 } else {
-                    int hash = 0;
-                    List<SingleDml> singleDmls = SingleDml.dml2SingleDmls(dml);
-                    singleDmls.forEach(singleDml -> {
-                        SyncItem syncItem = new SyncItem(config, singleDml);
-                        dmlsPartition[hash].add(syncItem);
-                    });
+                    configMap = mappingConfig.get(destination + "_" + database + "-" + table);
                 }
+
+                if (configMap == null) {
+                    return false;
+                }
+
+                if (configMap.values().isEmpty()) {
+                    return false;
+                }
+
+                for (MappingConfig config : configMap.values()) {
+                    if (config.getConcurrent()) {
+                        List<SingleDml> singleDmls = SingleDml.dml2SingleDmls(dml);
+                        singleDmls.forEach(singleDml -> {
+                            int hash = pkHash(config.getDbMapping(), singleDml.getData());
+                            SyncItem syncItem = new SyncItem(config, singleDml);
+                            dmlsPartition[hash].add(syncItem);
+                        });
+                    } else {
+                        int hash = 0;
+                        List<SingleDml> singleDmls = SingleDml.dml2SingleDmls(dml);
+                        singleDmls.forEach(singleDml -> {
+                            SyncItem syncItem = new SyncItem(config, singleDml);
+                            dmlsPartition[hash].add(syncItem);
+                        });
+                    }
+                }
+                return true;
             }
-            return true;
-        }
-    }   );
+        });
     }
 
     /**
      * 单条 dml 同步
      *
      * @param batchExecutor 批量事务执行器
-     * @param config 对应配置对象
-     * @param dml DML
+     * @param config        对应配置对象
+     * @param dml           DML
      */
     public void sync(BatchExecutor batchExecutor, MappingConfig config, SingleDml dml) {
         if (config != null) {
             try {
                 String type = dml.getType();
+                DbMapping dbMapping = config.getDbMapping();
+                if (dbMapping.getTableLog()) {
+                    // 添加新纪录,truncate暂时不做处理
+                    if (type != null && !type.equalsIgnoreCase("TRUNCATE") && !type.equalsIgnoreCase("DELETE")) {
+                        insert(batchExecutor, config, dml);
+                        return;
+                    }
+                }
                 if (type != null && type.equalsIgnoreCase("INSERT")) {
                     insert(batchExecutor, config, dml);
                 } else if (type != null && type.equalsIgnoreCase("UPDATE")) {
@@ -230,7 +236,7 @@ public class RdbSyncService {
      * 插入操作
      *
      * @param config 配置项
-     * @param dml DML数据
+     * @param dml    DML数据
      */
     private void insert(BatchExecutor batchExecutor, MappingConfig config, SingleDml dml) throws SQLException {
         Map<String, Object> data = dml.getData();
@@ -256,7 +262,7 @@ public class RdbSyncService {
         insertSql.delete(len - 1, len).append(")");
 
         Map<String, Integer> ctype = getTargetColumnType(batchExecutor.getConn(), config);
-
+        final boolean tableLog = dbMapping.getTableLog();
         List<Map<String, ?>> values = new ArrayList<>();
         for (Map.Entry<String, String> entry : columnsMap.entrySet()) {
             String targetColumnName = entry.getKey();
@@ -265,11 +271,15 @@ public class RdbSyncService {
                 srcColumnName = Util.cleanColumn(targetColumnName);
             }
 
+
             Integer type = ctype.get(Util.cleanColumn(targetColumnName).toLowerCase());
             if (type == null) {
                 throw new RuntimeException("Target column: " + targetColumnName + " not matched");
             }
             Object value = data.get(srcColumnName);
+            if (tableLog && targetColumnName.equalsIgnoreCase("id")){
+                value = generator.nextId();
+            }
             BatchExecutor.setValue(values, type, value);
         }
 
@@ -277,7 +287,7 @@ public class RdbSyncService {
             batchExecutor.execute(insertSql.toString(), values);
         } catch (SQLException e) {
             if (skipDupException
-                && (e.getMessage().contains("Duplicate entry") || e.getMessage().startsWith("ORA-00001:"))) {
+                    && (e.getMessage().contains("Duplicate entry") || e.getMessage().startsWith("ORA-00001:"))) {
                 // ignore
                 // TODO 增加更多关系数据库的主键冲突的错误码
             } else {
@@ -294,7 +304,7 @@ public class RdbSyncService {
      * 更新操作
      *
      * @param config 配置项
-     * @param dml DML数据
+     * @param dml    DML数据
      */
     private void update(BatchExecutor batchExecutor, MappingConfig config, SingleDml dml) throws SQLException {
         Map<String, Object> data = dml.getData();
@@ -397,7 +407,7 @@ public class RdbSyncService {
     /**
      * 获取目标字段类型
      *
-     * @param conn sql connection
+     * @param conn   sql connection
      * @param config 映射配置
      * @return 字段sqlType
      */
@@ -466,9 +476,9 @@ public class RdbSyncService {
     public static class SyncItem {
 
         private MappingConfig config;
-        private SingleDml     singleDml;
+        private SingleDml singleDml;
 
-        public SyncItem(MappingConfig config, SingleDml singleDml){
+        public SyncItem(MappingConfig config, SingleDml singleDml) {
             this.config = config;
             this.singleDml = singleDml;
         }
@@ -477,7 +487,13 @@ public class RdbSyncService {
     /**
      * 取主键hash
      */
+    private static final IdentifierGenerator generator = new DefaultIdentifierGenerator();
+
     public int pkHash(DbMapping dbMapping, Map<String, Object> d) {
+        if (dbMapping.getTableLog()) {
+            // 目前只匹配id组件
+            return pkHash(dbMapping, d, Collections.singletonMap("id", generator.nextId()));
+        }
         return pkHash(dbMapping, d, null);
     }
 

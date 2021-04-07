@@ -97,6 +97,7 @@ public class MappingConfig implements AdapterConfig {
         private String              table;                               // 表名
         private Map<String, String> targetPk    = new LinkedHashMap<>(); // 目标表主键字段
         private boolean             mapAll      = false;                 // 映射所有字段
+        private boolean             tableLog    = false;                 // 是否是记录表的操作日志
         private String              targetDb;                            // 目标库名
         private String              targetTable;                         // 目标表名
         private Map<String, String> targetColumns;                       // 目标表字段映射
@@ -146,6 +147,14 @@ public class MappingConfig implements AdapterConfig {
 
         public void setMapAll(Boolean mapAll) {
             this.mapAll = mapAll;
+        }
+
+        public Boolean getTableLog() {
+            return tableLog;
+        }
+
+        public void setTableLog(Boolean tableLog) {
+            this.tableLog = tableLog;
         }
 
         public String getTargetDb() {
@@ -210,5 +219,6 @@ public class MappingConfig implements AdapterConfig {
         public void setAllMapColumns(Map<String, String> allMapColumns) {
             this.allMapColumns = allMapColumns;
         }
+
     }
 }
