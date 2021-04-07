@@ -5,6 +5,40 @@
 [![average time to resolve an issue](http://isitmaintained.com/badge/resolution/alibaba/canal.svg)](http://isitmaintained.com/project/alibaba/canal "average time to resolve an issue")
 [![percentage of issues still open](http://isitmaintained.com/badge/open/alibaba/canal.svg)](http://isitmaintained.com/project/alibaba/canal "percentage of issues still open")
 
+## table log实现
+目前实现`insert``update`的日志填充，变异rdb模块替换官方1.1.4版本canal-adapter的中的plugin的`client-adapter.rdb-1.1.4-jar-with-dependencies.jar`依赖
+```yaml
+dataSourceKey: defaultDS
+destination: example
+groupId: g1
+outerAdapterKey: mysql1
+concurrent: true
+dbMapping:
+  # 开启 table log功能
+  tableLog: true
+  database: woodpecker
+  table: pedc_deptcheck
+  targetTable: woodpecker.pedc_deptcheck_log
+  targetPk:
+    id: id
+#  mapAll: true
+  targetColumns:
+    # id映射关系必须有target目前组件
+    id: id
+    tenant_id: tenant_id
+    hospital_code: hospital_code
+    archive_no: archive_no
+    pe_no: pe_no
+    deptcheck_id: id
+    dept_id: dept_id 
+    operate_doctor_id: audit_doctor_id
+    operate_time: check_date
+    operate_seq: is_dept_audit
+  #etlCondition: "where c_time>={}"
+  commitBatch: 3000 # 批量提交的大小
+
+```
+
 ## 背景
 
 早期，阿里巴巴 B2B 公司因为存在杭州和美国双机房部署，存在跨机房同步的业务需求 ，主要是基于trigger的方式获取增量变更。从 2010 年开始，公司开始逐步尝试数据库日志解析，获取增量变更进行同步，由此衍生出了增量订阅和消费业务，从此开启一段新纪元。
